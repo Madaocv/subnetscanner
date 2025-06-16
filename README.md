@@ -40,16 +40,6 @@ This project provides tools for scanning subnet IP ranges, detecting responsive 
 
 ## Usage
 
-### Basic Subnet Scanning
-
-To run a basic subnet scan using default settings:
-
-```bash
-python subnet_scanner.py
-```
-
-This will scan the default subnet (10.31.212.0/24) and report any responsive devices.
-
 ### Z15 Fan Broker
 
 For scanning with the Z15 Fan Broker tool, which provides additional features:
@@ -62,6 +52,16 @@ python z15_fan_broker.py --scan --config custom_config.json
 python z15_fan_broker.py --scan --report --config custom_config.json
 
 ```
+
+### Basic Subnet Scanning
+
+To run a basic subnet scan using default settings:
+
+```bash
+python subnet_scanner.py
+```
+
+This will scan the default subnet (10.31.212.0/24) and report any responsive devices.
 
 ### Configuration
 
