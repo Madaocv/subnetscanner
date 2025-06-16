@@ -89,8 +89,8 @@ class SubnetControllerScan:
             if response.status_code == 200:
                 log_lines = response.text.strip().splitlines()
                 
-                # Pattern to parse syslog-style line
-                log_pattern = re.compile(r'^(?P<date>\w{3} \d{1,2}) (?P<time>\d{2}:\d{2}:\d{2}) .* (?P<source>\S+\[\d+\]): (?P<message>.+)$')
+                # Pattern to parse syslog-style line - improved to handle more formats
+                log_pattern = re.compile(r'^(?P<date>\w{3}\s+\d{1,2}) (?P<time>\d{2}:\d{2}:\d{2}) (?:[^\[]+\s+)?(?P<source>[^\s:]+(?:\[\d+\])?): (?P<message>.+)$')
                 
                 last_line = log_lines[-1] if log_lines else "Log is empty."
                 match = log_pattern.match(last_line)
@@ -174,7 +174,7 @@ class SubnetControllerScan:
     
     def print_results_summary(self) -> None:
         """Print a summary of scan results"""
-        # Загальний заголовок
+        # General header
         print(f"\n{'-'*105}")
         print(f"📊 SCAN SUMMARY")
         print(f"{'-'*105}")
@@ -182,9 +182,11 @@ class SubnetControllerScan:
         print(f"✅ Successful log fetches: {sum(1 for r in self.results.values() if r.get('status') == 'success')}")
         print(f"❌ Failed log fetches: {sum(1 for r in self.results.values() if r.get('status') == 'error')}")
         
-        # Детальна інформація для кожної IP-адреси у форматі з lastlog_v1.py
+        # Detailed information for each IP address
         for ip, result in self.results.items():
             print(f"{'-'*105}\n📡 Device IP Address: {ip}")
+            
+            # Last log entry
             print("\n🕘 Last Log Entry:")
             if result.get("status") == "success":
                 if "date" in result:
@@ -196,7 +198,6 @@ class SubnetControllerScan:
                     print(f"• Raw: {result.get('raw_log', 'Log is empty.')}")
             else:
                 print(f"• ❌ Error: {result.get('message')}")
-        
         
         print(f"{'-'*105}")
 
