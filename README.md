@@ -1,0 +1,98 @@
+# Subnet Scanner
+
+This project provides tools for scanning subnet IP ranges, detecting responsive devices, and retrieving system logs from them. It includes specialized support for Z15 Fan devices.
+
+## Features
+
+- Scan IP subnets to find responsive devices
+- Retrieve logs from responsive devices using HTTP requests
+- Concurrent scanning for improved performance
+- Generate reports in JSON and HTML formats
+- Custom configuration options
+
+## Components
+
+1. **subnet_scanner.py** - Core scanning tool that can scan IP ranges and fetch logs
+2. **z15_fan_broker.py** - Extended tool with specialized functionality for Z15 Fan devices
+3. **custom_config.json** - Configuration file for subnet settings and credentials
+
+## Installation
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/subnetscanner.git
+   cd subnetscanner
+   ```
+
+2. Install the required dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+## Usage
+
+### Basic Subnet Scanning
+
+To run a basic subnet scan using default settings:
+
+```bash
+python subnet_scanner.py
+```
+
+This will scan the default subnet (10.31.212.0/24) and report any responsive devices.
+
+### Z15 Fan Broker
+
+For scanning with the Z15 Fan Broker tool, which provides additional features:
+
+```bash
+# Scan using default or specified config file
+python z15_fan_broker.py --scan --config custom_config.json
+
+# Generate reports based on scan results
+python z15_fan_broker.py --scan --report --config custom_config.json
+
+# Generate reports only (if scan was performed previously)
+python z15_fan_broker.py --report --config custom_config.json
+```
+
+### Configuration
+
+You can customize the behavior by modifying `custom_config.json`:
+
+```json
+{
+    "username": "root",
+    "password": "root",
+    "timeout": 5,
+    "subnets": [
+        "10.31.212.0/24",
+        "10.31.217.0/24"
+    ],
+    "log_endpoint": "/cgi-bin/get_kernel_log.cgi"
+}
+```
+
+- **username/password**: Credentials for HTTP Digest Authentication
+- **timeout**: HTTP request timeout in seconds
+- **subnets**: List of subnets to scan in CIDR notation
+- **log_endpoint**: API endpoint for fetching logs from devices
+
+## Output Examples
+
+The tools will generate:
+
+1. Terminal output showing responsive IPs and their log entries
+2. JSON file with detailed scan results
+3. HTML report for easier visualization (with Z15 Fan Broker)
+
+## Requirements
+
+- Python 3.6+
+- Required packages (see requirements.txt):
+  - requests
+  - ipaddress
+
+## License
+
+[Insert your license information here]

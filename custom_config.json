@@ -1,0 +1,10 @@
+{
+    "username": "root",
+    "password": "root",
+    "timeout": 5,
+    "subnets": [
+        "10.31.212.0/24",
+        "10.31.217.0/24"
+    ],
+    "log_endpoint": "/cgi-bin/get_kernel_log.cgi"
+}
