@@ -71,7 +71,7 @@ You can customize the behavior by modifying `custom_config.json`:
 {
     "username": "root",
     "password": "root",
-    "timeout": 5,
+    "timeout": 15,
     "subnets": [
         "10.31.212.0/24",
         "10.31.217.0/24"
@@ -92,6 +92,20 @@ The tools will generate:
 1. Terminal output showing responsive IPs and their log entries
 2. JSON file with detailed scan results
 3. HTML report for easier visualization (with Z15 Fan Broker)
+
+### Script Execution
+
+The following screenshot shows the script execution and terminal output:
+
+![Script Execution](img/script.png)
+
+### Report Outputs
+
+#### JSON Report
+![JSON Report](img/reportjson.png)
+
+#### HTML Report
+![HTML Report](img/reporthtml.png)
 
 ## Requirements
 
