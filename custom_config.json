@@ -1,7 +1,7 @@
 {
     "username": "root",
     "password": "root",
-    "timeout": 5,
+    "timeout": 15,
     "subnets": [
         "10.31.212.0/24",
         "10.31.217.0/24"
