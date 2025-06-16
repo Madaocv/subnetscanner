@@ -20,11 +20,20 @@ This project provides tools for scanning subnet IP ranges, detecting responsive 
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/subnetscanner.git
+   git clone https://github.com/Madaocv/subnetscanner.git
    cd subnetscanner
    ```
 
-2. Install the required dependencies:
+2. Create and activate a virtual environment (recommended):
+   ```bash
+   # Create a virtual environment with Python 3.9
+   python3.9 -m venv .venv
+   
+   # Activate the virtual environment
+   source .venv/bin/activate
+   ```
+
+3. Install the required dependencies:
    ```
    pip install -r requirements.txt
    ```
@@ -52,8 +61,6 @@ python z15_fan_broker.py --scan --config custom_config.json
 # Generate reports based on scan results
 python z15_fan_broker.py --scan --report --config custom_config.json
 
-# Generate reports only (if scan was performed previously)
-python z15_fan_broker.py --report --config custom_config.json
 ```
 
 ### Configuration
@@ -88,11 +95,7 @@ The tools will generate:
 
 ## Requirements
 
-- Python 3.6+
+- Python 3.9+
 - Required packages (see requirements.txt):
   - requests
   - ipaddress
-
-## License
-
-[Insert your license information here]
