@@ -127,6 +127,12 @@ class TestErrorGrouping(unittest.TestCase):
             self.broker._print_aggregate_report()
         
         output_text = output_buffer.getvalue()
+        
+        # Print the captured output to see it in the terminal
+        print("\n\nCaptured Test Output:\n" + "="*50)
+        print(output_text)
+        print("="*50)
+        
         error_groups = self.extract_error_groups(output_text)
         
         # Verify the expected error groups exist
