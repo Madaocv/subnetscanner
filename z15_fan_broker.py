@@ -106,24 +106,9 @@ class Z15FanBroker:
         responsive_ips = len(self.scanner.active_ips)
         unresponsive_ips = total_ips_scanned - responsive_ips
         
-        # Identify Z15 devices by checking log messages
-        z15_devices = []
+        # Treat all responsive devices as Z15 devices
+        z15_devices = list(self.scanner.results.keys())
         non_z15_devices = []
-        
-        # Enhanced Z15 device detection patterns
-        z15_patterns = [
-            'Fan',
-            'No 2 Fan find',
-        ]
-        
-        # Categorize devices based on log patterns
-        for ip, result in self.scanner.results.items():           
-            # Check for typical Z15 log patterns
-            message = result.get('message', '') or result.get('raw_log', '')
-            if any(z15_pattern in message for z15_pattern in z15_patterns):
-                z15_devices.append(ip)
-            else:
-                non_z15_devices.append(ip)
         
         # Print summary report header
         print(f"\n{'='*40}")
