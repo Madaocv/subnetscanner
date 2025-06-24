@@ -20,12 +20,13 @@ class SubnetControllerScan:
         self.results = {}
         self.active_ips = []
         
-    def scan_subnet(self, subnet: str) -> List[str]:
+    def scan_subnet(self, subnet: str, verbose: bool = True) -> List[str]:
         """
         Scan a subnet and return a list of responsive IP addresses
         
         Args:
             subnet: Subnet in CIDR notation (e.g., '192.168.1.0/24')
+            verbose: Whether to print detailed output for each found host
             
         Returns:
             List of responsive IP addresses
@@ -49,9 +50,11 @@ class SubnetControllerScan:
                         is_responsive = future.result()
                         if is_responsive:
                             responsive_ips.append(ip)
-                            print(f"✅ Found responsive host: {ip}")
+                            if verbose:
+                                print(f"✅ Found responsive host: {ip}")
                     except Exception as e:
-                        print(f"❌ Error checking {ip}: {e}")
+                        if verbose:
+                            print(f"❌ Error checking {ip}: {e}")
             
             self.active_ips = responsive_ips
             return responsive_ips
@@ -69,13 +72,14 @@ class SubnetControllerScan:
         except requests.RequestException:
             return False
     
-    def fetch_logs_from_ip(self, ip: str, endpoint: str = "/cgi-bin/get_kernel_log.cgi") -> Dict[str, Any]:
+    def fetch_logs_from_ip(self, ip: str, endpoint: str = "/cgi-bin/get_kernel_log.cgi", verbose: bool = True) -> Dict[str, Any]:
         """
         Fetch logs from a specific IP address
         
         Args:
             ip: IP address to fetch logs from
             endpoint: API endpoint for logs
+            verbose: Whether to print detailed output for each response
             
         Returns:
             Dictionary with log information
