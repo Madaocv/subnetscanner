@@ -61,11 +61,31 @@ class Z15FanBroker:
             
             # If active IPs found in this subnet
             if subnet_ips:
-                # Get logs for each IP
+                # First detect device types
                 for ip in subnet_ips:
+                    # Detect device type (quietly)
+                    device_info = self.scanner.detect_device_type(ip, verbose=False)
+                    
+                    # Get logs for each IP
                     self.scanner.active_ips = [ip]  # Temporarily set one IP for getting logs
-                    result = self.scanner.fetch_logs_from_ip(ip, endpoint, verbose=False)
+                    
+                    # Fetch logs based on device type
+                    result = None
+                    device_type = device_info.get("device_type", "unknown")
+                    
+                    if "T21" in device_type:
+                        result = self.scanner.fetch_logs_via_websocket(ip, "/api/v1/logs-ws/status")
+                    elif "S21" in device_type:
+                        # Try S21-specific endpoint
+                        result = self.scanner.fetch_logs_from_s21(ip, "/cgi-bin/hlog.cgi")
+                    else:
+                        # Default log fetching
+                        result = self.scanner.fetch_logs_from_ip(ip, endpoint, verbose=False)
+                    
                     if result:
+                        # Add device type information to the result
+                        result["device_type"] = device_type
+                        result["device_type_source"] = device_info.get("source")
                         all_results[ip] = result
             
             # Add to overall list
@@ -106,9 +126,39 @@ class Z15FanBroker:
         responsive_ips = len(self.scanner.active_ips)
         unresponsive_ips = total_ips_scanned - responsive_ips
         
-        # Treat all responsive devices as Z15 devices
-        z15_devices = list(self.scanner.results.keys())
-        non_z15_devices = []
+        # Group devices by detected type
+        device_types = {}
+        
+        for ip, result in self.scanner.results.items():
+            # Process all devices regardless of log fetch status
+            # (device type detection happens before log fetching)
+            device_type = result.get("device_type", "unknown")
+            
+            # Extract main device model from longer strings
+            # Use a more comprehensive approach to categorize devices
+            if device_type != "unknown":
+                # Extract the main model from full device type string
+                if "Z15" in device_type:
+                    main_type = "Z15"
+                elif "T21" in device_type:
+                    main_type = "T21"
+                elif "S21" in device_type:  # Added for Antminer S21+ devices
+                    main_type = "S21"
+                else:
+                    # For any other models, extract the model number (e.g., Antminer XXX -> XXX)
+                    import re
+                    model_match = re.search(r'Antminer\s+([A-Z]\d+[\+]*)', device_type)
+                    if model_match:
+                        main_type = model_match.group(1)
+                    else:
+                        # Use the full string if we can't extract a specific model
+                        main_type = device_type
+            else:
+                main_type = "unknown"
+            
+            if main_type not in device_types:
+                device_types[main_type] = []
+            device_types[main_type].append(ip)
         
         # Print summary report header
         print(f"\n{'='*40}")
@@ -118,33 +168,62 @@ class Z15FanBroker:
         # Print subnet information
         print(f"Subnets scanned: {', '.join(self.config.get('subnets'))}")
         print(f"IPs scanned: {total_ips_scanned}")
-        print(f"IPs with device Found: {responsive_ips}")
-        print(f"Z15 Found: {len(z15_devices)}")
-        print(f"Non Z-15 Found: {len(non_z15_devices)}")
+        print(f"Responsive IPs: {responsive_ips}")
+        
+        # Print device type counts
+        print(f"\nDevice Types Found:")
+        for device_type, ips in device_types.items():
+            print(f"• {device_type}: {len(ips)} devices")
+        
         print(f"IPs unresponsive: {unresponsive_ips}")
         
-        # Aggregate errors by message
-        error_groups = {}
+        # Aggregate errors by device type and message
+        device_error_groups = {}
         
         for ip, result in self.scanner.results.items():
-            if ip in z15_devices:
-                message = result.get('message', '')
-                if message:
-                    if message not in error_groups:
-                        error_groups[message] = []
-                    error_groups[message].append(ip)
-        
-        # Print error summary
-        if error_groups:
-            print(f"\nErrors found on Z15 devices:")
-            for message, ips in error_groups.items():
-                # Display abbreviated IP list if too many
-                if len(ips) > 3:
-                    ip_display = f"{ips[0]}, {ips[1]}, {ips[2]}, etc."
+            # Get device type with same processing as above
+            device_type = result.get("device_type", "unknown")
+            if device_type != "unknown":
+                if "Z15" in device_type:
+                    main_type = "Z15"
+                elif "T21" in device_type:
+                    main_type = "T21"
+                elif "S21" in device_type:
+                    main_type = "S21"
                 else:
-                    ip_display = ", ".join(ips)
+                    import re
+                    model_match = re.search(r'Antminer\s+([A-Z]\d+[\+]*)', device_type)
+                    if model_match:
+                        main_type = model_match.group(1)
+                    else:
+                        main_type = device_type
+            else:
+                main_type = "unknown"
+            
+            # Get message, all devices may have messages (error or success)
+            message = result.get('message', '')
+            
+            if message:
+                if main_type not in device_error_groups:
+                    device_error_groups[main_type] = {}
                 
-                print(f"• 📝 Message  : {message} | {len(ips)} devices | {ip_display}")
+                if message not in device_error_groups[main_type]:
+                    device_error_groups[main_type][message] = []
+                
+                device_error_groups[main_type][message].append(ip)
+        
+        # Print error summary by device type
+        for device_type, error_groups in device_error_groups.items():
+            if error_groups:
+                print(f"\nErrors found on {device_type} devices:")
+                for message, ips in error_groups.items():
+                    # Display abbreviated IP list if too many
+                    if len(ips) > 3:
+                        ip_display = f"{ips[0]}, {ips[1]}, {ips[2]}, etc."
+                    else:
+                        ip_display = ", ".join(ips)
+                    
+                    print(f"• 📝 Message  : {message} | {len(ips)} devices | {ip_display}")
 
 def main():
     parser = argparse.ArgumentParser(description='Z15 Fan Broker - Subnet scanning and device management')
