@@ -217,11 +217,8 @@ class Z15FanBroker:
             if error_groups:
                 print(f"\nErrors found on {device_type} devices:")
                 for message, ips in error_groups.items():
-                    # Display abbreviated IP list if too many
-                    if len(ips) > 3:
-                        ip_display = f"{ips[0]}, {ips[1]}, {ips[2]}, etc."
-                    else:
-                        ip_display = ", ".join(ips)
+                    # Display all IPs in the list
+                    ip_display = ", ".join(ips)
                     
                     print(f"• 📝 Message  : {message} | {len(ips)} devices | {ip_display}")
 
