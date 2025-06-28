@@ -219,7 +219,7 @@ class SubnetScanner:
     
     def save_results_to_file(self, filename: str = "scan_results.json") -> None:
         """
-        Save scan results to a JSON file
+        Save scan results to a JSON file with improved formatting
         
         Args:
             filename: Name of the output file
@@ -227,11 +227,41 @@ class SubnetScanner:
         # Create output directory if it doesn't exist
         os.makedirs(os.path.dirname(filename) if os.path.dirname(filename) else '.', exist_ok=True)
         
-        # Save JSON results
-        with open(filename, 'w') as f:
-            json.dump(self.results, f, indent=2)
+        # Group results by device type for better readability
+        structured_results = {
+            "scan_summary": {
+                "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "total_devices": len(self.results),
+                "subnets_scanned": self.config.get('subnets', []),
+            },
+            "devices_by_type": {}
+        }
         
-        print(f"✅ Results saved to {filename}")
+        # Process and group devices by type
+        for ip, result in self.results.items():
+            device_type = result.get("device_type", "unknown")
+            
+            # Normalize device type (handle common variations)
+            main_type = DeviceRegistry.normalize_device_type(device_type)
+            
+            # Initialize device type group if not exists
+            if main_type not in structured_results["devices_by_type"]:
+                structured_results["devices_by_type"][main_type] = {}
+            
+            # Add device to its type group
+            structured_results["devices_by_type"][main_type][ip] = result
+        
+        # Add device type counts to summary
+        device_counts = {}
+        for device_type, devices in structured_results["devices_by_type"].items():
+            device_counts[device_type] = len(devices)
+        structured_results["scan_summary"]["device_counts"] = device_counts
+        
+        # Save structured JSON results
+        with open(filename, 'w') as f:
+            json.dump(structured_results, f, indent=2)
+        
+        # print(f"✅ Results saved to {filename}")
     
     def generate_report(self):
         """
@@ -254,7 +284,7 @@ class SubnetScanner:
         return {
             "json_report": output_file,
         }
-    
+        
     def print_aggregate_report(self):
         """
         Print an aggregate report of scan results, grouping devices by type
@@ -281,7 +311,7 @@ class SubnetScanner:
             if main_type not in device_types:
                 device_types[main_type] = []
             device_types[main_type].append(ip)
-        
+            
         # Print summary report header
         print(f"\n{'='*40}")
         print(f"============ Scanner Report ============")
