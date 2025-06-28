@@ -55,7 +55,7 @@ class T21Handler(DeviceHandler):
         Returns:
             Dictionary with log information
         """
-        # Повертаємо чесне повідомлення про помилку підключення
+        # Return an honest connection error message
         return {
             "ip": ip,
             "status": "error",
@@ -75,12 +75,12 @@ class T21Handler(DeviceHandler):
         Returns:
             Dictionary with log information
         """
-        # Отримуємо логи через WebSocket для T21
+        # Get logs via WebSocket for T21
         endpoint = self.get_log_endpoint()
         timeout = self.scanner.timeout
         result = self.fetch_logs_via_websocket(ip, endpoint, timeout)
         
-        # Оновлюємо тип пристрою на T21, якщо він був іншим
+        # Update device type to T21 if it was different
         result["device_type"] = "T21"
         result["device_type_source"] = "registry"
         
@@ -125,20 +125,20 @@ class T21Handler(DeviceHandler):
                     # Connect to WebSocket - одне просте підключення
                     async with websockets.connect(ws_url) as ws:
                         try:
-                            # Отримуємо одне повідомлення з таймаутом
+                            # Get one message with timeout
                             message = await asyncio.wait_for(ws.recv(), timeout=5.0)
                             
                             if isinstance(message, str):
-                                # Зберігаємо отримане повідомлення
+                                # Save the received message
                                 raw_logs.append(message)
                                 
-                                # Розбиваємо повідомлення на рядки
+                                # Split the message into lines
                                 log_lines = message.splitlines()
                                 
-                                # Знаходимо всі валідні логи - рядки, що починаються з дати у форматі [YYYY/MM/DD]
+                                # Find all valid logs - lines that start with a date in [YYYY/MM/DD] format
                                 for line in log_lines:
                                     if line.strip().startswith('[') and ']' in line:
-                                        # Спробуємо розпарсити лог
+                                        # Try to parse the log
                                         match = re.match(log_pattern, line)
                                         if match:
                                             timestamp, level, log_message = match.groups()
@@ -150,16 +150,16 @@ class T21Handler(DeviceHandler):
                                             valid_logs.append(log_entry)
                         
                         except asyncio.TimeoutError:
-                            # Тайм-аут при очікуванні повідомлення
+                            # Timeout while waiting for a message
                             pass
                         except Exception as e:
-                            # Інша помилка при отриманні повідомлення
+                            # Other error when receiving a message
                             print(f"WebSocket error: {e}")
                     
                     return valid_logs
                 
                 except Exception as e:
-                    # Помилка підключення
+                    # Connection error
                     print(f"WebSocket connection error: {e}")
                     return []
             
@@ -171,16 +171,16 @@ class T21Handler(DeviceHandler):
                 # No logs were found
                 return self.fallback_get_logs(ip)
             
-            # Сортування логів за часовою міткою (спочатку старіші, потім новіші)
+            # Sort logs by timestamp (oldest first, newest last)
             valid_logs.sort(key=lambda log: log['timestamp'])
             
-            # Вибір найсвіжішого логу (останній в списку)
+            # Select the freshest log (last in the list)
             last_log = valid_logs[-1]
-            result["message"] = last_log['message']  # Тільки саме повідомлення, без timestamp та level
+            result["message"] = last_log['message']  # Only the message itself, without timestamp and level
             result["time"] = last_log['timestamp'].split()[1]  # Extract time part
             result["date"] = last_log['timestamp'].split()[0]  # Extract date part
             result["level"] = last_log['level']
-            result["logs"] = valid_logs[-10:] if len(valid_logs) > 10 else valid_logs  # Зберігаємо останні 10 логів
+            result["logs"] = valid_logs[-10:] if len(valid_logs) > 10 else valid_logs  # Save the last 10 logs
             
             return result
             

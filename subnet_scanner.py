@@ -124,7 +124,7 @@ class SubnetScanner:
         """
         try:
             network = ipaddress.ip_network(subnet)
-            # Завжди виводимо цю інформацію, незалежно від verbose
+            # Always display this information, regardless of verbose setting
             print(f"Starting scan of subnet {subnet} ({network.num_addresses} addresses)")
             
             responsive_ips = []
@@ -142,7 +142,7 @@ class SubnetScanner:
                         is_responsive = future.result()
                         if is_responsive:
                             responsive_ips.append(ip)
-                            # Відключаємо вивід про знайдені хости
+                            # Disable output about found hosts
                             # if verbose:
                             #    print(f"✅ Found responsive host: {ip}")
                     except Exception as e:
@@ -311,7 +311,7 @@ class SubnetScanner:
             message = result.get('message', '')
             
             if message:
-                # Використовуємо тип пристрою з результату, щоб гарантувати правильну класифікацію
+                # Use device type from the result to ensure proper classification
                 
                 if main_type not in device_error_groups:
                     device_error_groups[main_type] = {}
