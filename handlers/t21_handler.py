@@ -67,23 +67,87 @@ class T21Handler(DeviceHandler):
     
     def fetch_logs(self, ip: str) -> Dict[str, Any]:
         """
-        Fetch logs from T21 device using WebSocket
+        Fetch fan status from T21 device using the /api/v1/summary endpoint
         
         Args:
             ip: IP address of the device
             
         Returns:
-            Dictionary with log information
+            Dictionary with fan status information
         """
-        # Get logs via WebSocket for T21
-        endpoint = self.get_log_endpoint()
-        timeout = self.scanner.timeout
-        result = self.fetch_logs_via_websocket(ip, endpoint, timeout)
+        # Base result including device type info
+        result = {
+            "ip": ip,
+            "status": "success",
+            "device_type": "T21",
+            "device_type_source": "registry"
+        }
         
-        # Update device type to T21 if it was different
-        result["device_type"] = "T21"
-        result["device_type_source"] = "registry"
-        
+        try:
+            # Get the credentials from the scanner config
+            username = self.scanner.config.get('username', 'root')
+            password = self.scanner.config.get('password', 'root')
+            timeout = self.scanner.timeout
+            
+            # Build the URL for the summary endpoint
+            url = f"http://{ip}/api/v1/summary"
+            
+            # Send the request with digest authentication
+            response = requests.get(
+                url,
+                auth=HTTPDigestAuth(username, password),
+                timeout=timeout
+            )
+            
+            # Raise an exception for non-2xx responses
+            response.raise_for_status()
+            
+            # Parse the JSON response
+            data = response.json()
+            
+            # Extract the fans section from the response
+            if 'miner' in data and 'cooling' in data['miner'] and 'fans' in data['miner']['cooling']:
+                fans = data['miner']['cooling']['fans']
+                
+                # Check if any fan has 'lost' status
+                lost_fans = [fan for fan in fans if fan.get('status') == 'lost']
+                lost_count = len(lost_fans)
+                
+                if lost_count > 0:
+                    # Create a message about lost fans - simplified as requested
+                    result["message"] = f"No {lost_count} Fan find"
+                else:
+                    # All fans are OK - return empty message to ignore successful checks
+                    result["message"] = ""
+                    # Set a flag to indicate this is a successful check that should be ignored
+                    result["ignore_success"] = True
+                    
+                # Store the fan data for reference
+                result["fan_data"] = fans
+            else:
+                # Missing fans data in response
+                result["status"] = "error"
+                result["message"] = "No fan data found in device response"
+                result["error_type"] = "missing_fan_data"
+                
+        except requests.exceptions.RequestException as e:
+            # Handle connection errors
+            result["status"] = "error"
+            result["message"] = f"Connection error: {str(e)}"
+            result["error_type"] = "connection_error"
+            
+        except ValueError as e:
+            # Handle JSON parsing errors
+            result["status"] = "error"
+            result["message"] = f"Invalid JSON response: {str(e)}"
+            result["error_type"] = "json_error"
+            
+        except Exception as e:
+            # Handle all other errors
+            result["status"] = "error"
+            result["message"] = f"Error fetching fan status: {str(e)}"
+            result["error_type"] = "unknown_error"
+            
         return result
     
     def fetch_logs_via_websocket(self, ip: str, endpoint: str = "/api/v1/logs-ws/status", timeout: int = 10) -> Dict[str, Any]:

@@ -346,6 +346,10 @@ class SubnetScanner:
             device_type = result.get("device_type", "unknown")
             main_type = DeviceRegistry.normalize_device_type(device_type)
             
+            # Skip this result if it's flagged to be ignored (successful checks)
+            if result.get('ignore_success', False):
+                continue
+                
             # Get message, all devices may have messages (error or success)
             message = result.get('message', '')
             
