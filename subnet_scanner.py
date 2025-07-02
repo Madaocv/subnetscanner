@@ -285,10 +285,9 @@ class SubnetScanner:
             "json_report": output_file,
         }
         
-    def print_aggregate_report(self):
+    def print_device_types_report(self):
         """
-        Print an aggregate report of scan results, grouping devices by type
-        and normalizing error messages for better readability
+        Print only the device types summary section of the report
         """
         # Get total IPs scanned across all subnets
         total_ips_scanned = sum(ipaddress.ip_network(subnet).num_addresses 
@@ -302,7 +301,6 @@ class SubnetScanner:
         
         for ip, result in self.results.items():
             # Process all devices regardless of log fetch status
-            # (device type detection happens before log fetching)
             device_type = result.get("device_type", "unknown")
             
             # Use the device registry to normalize device type
@@ -311,7 +309,7 @@ class SubnetScanner:
             if main_type not in device_types:
                 device_types[main_type] = []
             device_types[main_type].append(ip)
-            
+        
         # Print summary report header
         print(f"\n{'='*40}")
         print(f"============ Scanner Report ============")
@@ -328,6 +326,17 @@ class SubnetScanner:
             print(f"• {device_type}: {len(ips)} devices")
         
         print(f"IPs unresponsive: {unresponsive_ips}")
+
+    def print_aggregate_report(self):
+        """
+        Print an aggregate report of scan results, grouping devices by type
+        and normalizing error messages for better readability
+        """
+        # Print the device types report first
+        self.print_device_types_report()
+        
+        # Aggregate errors by device type and message
+        device_error_groups = {}
         
         # Aggregate errors by device type and message
         device_error_groups = {}
@@ -392,27 +401,36 @@ def main():
     parser.add_argument('--config', help='Path to configuration file')
     parser.add_argument('--scan', action='store_true', help='Scan subnets for active devices')
     parser.add_argument('--report', action='store_true', help='Generate a report of scan results')
+    parser.add_argument('--devicetypes', action='store_true', help='Show only device types summary')
     args = parser.parse_args()
     
     scanner = SubnetScanner(config_file=args.config)
     
     if args.scan:
-        print("🔍 Starting subnet scan...")
+        if not args.devicetypes:
+            print("🔍 Starting subnet scan...")
         active_ips = scanner.scan_subnets()
         
-        # Always display the aggregate report after scanning
-        scanner.print_aggregate_report()
+        # Display report based on options
+        if args.devicetypes:
+            scanner.print_device_types_report()
+        else:
+            scanner.print_aggregate_report()
         
         # Generate JSON report if requested
         if args.report:
-            print("\n📊 Generating JSON report...")
+            if not args.devicetypes:
+                print("\n📊 Generating JSON report...")
             reports = scanner.generate_report()
-            print(f"✅ JSON report saved to {reports['json_report']}")
+            if not args.devicetypes:
+                print(f"✅ JSON report saved to {reports['json_report']}")
     
     elif args.report and not args.scan:
-        print("\n📊 Generating report...")
+        if not args.devicetypes:
+            print("\n📊 Generating report...")
         reports = scanner.generate_report()
-        print(f"✅ JSON report saved to {reports['json_report']}") 
+        if not args.devicetypes:
+            print(f"✅ JSON report saved to {reports['json_report']}") 
 
 if __name__ == "__main__":
     main()
