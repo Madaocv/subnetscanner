@@ -8,6 +8,7 @@ import re
 import json
 import ssl
 import time
+import socket
 import datetime
 import asyncio
 import threading
@@ -15,7 +16,7 @@ import requests
 from typing import Dict, Any, List
 from requests.auth import HTTPDigestAuth
 
-from device_handler import DeviceHandler
+from device_socket_based_handler import SocketBasedHandler
 from device_registry import DeviceRegistry
 
 # Try importing websocket packages
@@ -36,7 +37,7 @@ except ImportError:
 # Define if any websocket capability is available
 WEBSOCKET_AVAILABLE = WEBSOCKETS_ASYNCIO_AVAILABLE or WEBSOCKET_CLIENT_AVAILABLE
 
-class S21ProHandler(DeviceHandler):
+class S21ProHandler(SocketBasedHandler):
     """Handler for S21 Pro devices"""
     device_type = "S21 Pro"
     def get_log_endpoint(self) -> str:
@@ -63,25 +64,64 @@ class S21ProHandler(DeviceHandler):
             "error_type": "connection_error"
         }
     
+
+    
     def fetch_logs(self, ip: str) -> Dict[str, Any]:
         """
-        Fetch logs from S21 Pro device using WebSocket
+        Fetch logs from S21 Pro device using socket API
         
         Args:
             ip: IP address of the device
             
         Returns:
-            Dictionary with log information
+            Dictionary with fan status information
         """
-        # Get logs via WebSocket for S21 Pro
-        endpoint = self.get_log_endpoint()
-        timeout = self.scanner.timeout
-        result = self.fetch_logs_via_websocket(ip, endpoint, timeout)
+        # Base result including device type info
+        result = {
+            "ip": ip,
+            "status": "success",
+            "device_type": "S21 Pro",
+            "device_type_source": "registry"
+        }
         
-        # Update device type to S21 Pro if it was different
-        result["device_type"] = "S21 Pro"
-        result["device_type_source"] = "registry"
-        
+        try:
+            # Send the stats command to get fan information
+            stats = self.send_socket_command(ip, "stats", timeout=self.scanner.timeout)
+            
+            if "error" in stats:
+                raise Exception(stats["error"])
+            
+            # Extract device type from STATS section if available
+            miner_type = self.get_device_type_from_stats(stats)
+            if miner_type:
+                result["miner_type"] = miner_type
+            
+            # Extract fan status using the base class method
+            failed_fans, fan_data, error_msg = self.extract_fan_status(stats)
+            
+            if error_msg:
+                result["status"] = "error"
+                result["message"] = error_msg
+                result["error_type"] = "fan_data_error"
+                return result
+            
+            # Add fan status information
+            if failed_fans > 0:
+                result["message"] = self.get_default_fan_message(failed_fans)
+            else:
+                # All fans are OK - return empty message to ignore successful checks
+                result["message"] = ""
+                result["ignore_success"] = True
+            
+            # Store raw fan data for reference
+            result["fan_data"] = fan_data
+                
+        except Exception as e:
+            # Handle all other errors
+            result["status"] = "error"
+            result["message"] = f"Error fetching fan status: {str(e)}"
+            result["error_type"] = "unknown_error"
+            
         return result
         
     def fetch_logs_via_websocket(self, ip: str, endpoint: str = "/api/v1/logs-ws/status", timeout: int = 10) -> Dict[str, Any]:
@@ -388,39 +428,25 @@ class S21ProHandler(DeviceHandler):
     
     @classmethod
     def detect(cls, ip: str, username: str, password: str, timeout: int) -> bool:
-        """
-        Detect if an IP is a S21 Pro device
-        
-        Args:
-            ip: IP address to check
-            username: Username for authentication
-            password: Password for authentication
-            timeout: Request timeout
-        Returns:
-            True if the IP is a S21 Pro device, False otherwise
-        """
-        # -------------------------------------------------------
-        # This adapts the logic from detect_device_type for S21 Pro devices
-        # -------------------------------------------------------
-        # Try API v1 summary endpoint
-        url = f"http://{ip}/api/v1/summary"
-        auth = HTTPDigestAuth(username, password)
-        
+        """Detect if an IP is a S21 Pro device using socket API"""
         try:
-            response = requests.get(url, auth=auth, timeout=timeout, verify=False)
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    if "miner" in data and "miner_type" in data["miner"]:
-                        device_type = data["miner"]["miner_type"]
-                        # S21 Pro detection
-                        if "S21 Pro" in device_type:
-                            return True
-                except Exception:
-                    pass
+            # Create a handler instance to use the socket command method
+            handler = cls(None)  # None for scanner as it's not needed for this call
+            
+            # Send stats command to get device information
+            stats = handler.send_socket_command(ip, "stats", timeout=timeout)
+            
+            # Check if we received a valid response
+            if "STATS" in stats and len(stats["STATS"]) > 0:
+                # Get device type from stats
+                if "Type" in stats["STATS"][0]:
+                    device_type = stats["STATS"][0]["Type"]
+                    # S21 Pro detection
+                    if "S21 Pro" in device_type:
+                        return True
         except Exception:
             pass
-        # If we get here, none of the S21 Pro-specific APIs responded
+        
         return False
 
 

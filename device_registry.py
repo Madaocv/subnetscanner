@@ -41,6 +41,33 @@ class DeviceRegistry:
     def get_detectors(cls):
         """Get all registered device detectors"""
         return cls._detectors
+    
+    @classmethod
+    def reorder_detectors(cls, preferred_order=None):
+        """
+        Reorder detectors to prioritize specific device types first
+        
+        Args:
+            preferred_order: List of device types in order of detection priority
+                            (types listed first will be checked first)
+        """
+        if not preferred_order:
+            return
+            
+        # Make a copy of the current detectors
+        current_detectors = dict(cls._detectors)
+        
+        # Clear the detectors
+        cls._detectors = {}
+        
+        # Add detectors back in preferred order
+        for device_type in preferred_order:
+            if device_type in current_detectors:
+                cls._detectors[device_type] = current_detectors.pop(device_type)
+        
+        # Add remaining detectors
+        for device_type, detector in current_detectors.items():
+            cls._detectors[device_type] = detector
         
     @classmethod
     def get_handler(cls, device_type: str):
@@ -65,7 +92,10 @@ class DeviceRegistry:
             return "unknown"
             
         # Extract the main model from full device type string
-        if "Z15" in device_type:
+        # Check for specific device types first (more specific before less specific)
+        if "Z15j" in device_type:
+            return "Z15j"
+        elif "Z15" in device_type:
             return "Z15"
         elif "T21" in device_type:
             return "T21"

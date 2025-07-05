@@ -40,10 +40,16 @@ WEBSOCKET_AVAILABLE = WEBSOCKETS_ASYNCIO_AVAILABLE or WEBSOCKET_CLIENT_AVAILABLE
 from device_manager import DeviceManager
 from handlers import t21_handler
 from handlers import s21_handler
+from handlers import z15j_handler  # Import Z15j before Z15 for detection order
 from handlers import z15_handler
 from handlers import s21_pro_handler
+from handlers import s19j_pro_handler
 from handlers import dg1_handler
 from device_registry import DeviceRegistry
+
+# Ensure Z15j is checked before Z15 in device detection
+# This is critical because both devices respond to similar APIs
+DeviceRegistry.reorder_detectors(preferred_order=["Z15j", "Z15", "T21", "S21", "S21Pro", "S19jPro", "DG1"])
 
 class SubnetScanner:
     """
