@@ -9,13 +9,14 @@ import json
 import ssl
 import time
 import datetime
+import socket
 import asyncio
 import threading
 import requests
 from typing import Dict, Any, List
 from requests.auth import HTTPDigestAuth
 
-from device_handler import DeviceHandler
+from device_socket_based_handler import SocketBasedHandler
 from device_registry import DeviceRegistry
 
 # Try importing websocket packages
@@ -37,7 +38,7 @@ except ImportError:
 WEBSOCKET_AVAILABLE = WEBSOCKETS_ASYNCIO_AVAILABLE or WEBSOCKET_CLIENT_AVAILABLE
 
 
-class T21Handler(DeviceHandler):
+class T21Handler(SocketBasedHandler):
     """Handler for T21 devices"""
     device_type = "T21"
     
@@ -65,9 +66,11 @@ class T21Handler(DeviceHandler):
             "error_type": "connection_error"
         }
     
+
+    
     def fetch_logs(self, ip: str) -> Dict[str, Any]:
         """
-        Fetch fan status from T21 device using the /api/v1/summary endpoint
+        Fetch fan status from T21 device using socket API
         
         Args:
             ip: IP address of the device
@@ -84,51 +87,36 @@ class T21Handler(DeviceHandler):
         }
         
         try:
-            # Get the credentials from the scanner config
-            username = self.scanner.config.get('username', 'root')
-            password = self.scanner.config.get('password', 'root')
-            timeout = self.scanner.timeout
+            # Send the stats command to get fan information
+            stats = self.send_socket_command(ip, "stats", timeout=self.scanner.timeout)
             
-            # Build the URL for the summary endpoint
-            url = f"http://{ip}/api/v1/summary"
+            if "error" in stats:
+                raise Exception(stats["error"])
             
-            # Send the request with digest authentication
-            response = requests.get(
-                url,
-                auth=HTTPDigestAuth(username, password),
-                timeout=timeout
-            )
+            # Extract device type from STATS section if available
+            miner_type = self.get_device_type_from_stats(stats)
+            if miner_type:
+                result["miner_type"] = miner_type
             
-            # Raise an exception for non-2xx responses
-            response.raise_for_status()
+            # Extract fan status using the base class method
+            failed_fans, fan_data, error_msg = self.extract_fan_status(stats)
             
-            # Parse the JSON response
-            data = response.json()
-            
-            # Extract the fans section from the response
-            if 'miner' in data and 'cooling' in data['miner'] and 'fans' in data['miner']['cooling']:
-                fans = data['miner']['cooling']['fans']
-                
-                # Check if any fan has 'lost' status
-                lost_fans = [fan for fan in fans if fan.get('status') == 'lost']
-                lost_count = len(lost_fans)
-                
-                if lost_count > 0:
-                    # Create a message about lost fans - simplified as requested
-                    result["message"] = f"No {lost_count} Fan find"
-                else:
-                    # All fans are OK - return empty message to ignore successful checks
-                    result["message"] = ""
-                    # Set a flag to indicate this is a successful check that should be ignored
-                    result["ignore_success"] = True
-                    
-                # Store the fan data for reference
-                result["fan_data"] = fans
-            else:
-                # Missing fans data in response
+            if error_msg:
                 result["status"] = "error"
-                result["message"] = "No fan data found in device response"
-                result["error_type"] = "missing_fan_data"
+                result["message"] = error_msg
+                result["error_type"] = "fan_data_error"
+                return result
+            
+            # Add fan status information
+            if failed_fans > 0:
+                result["message"] = self.get_default_fan_message(failed_fans)
+            else:
+                # All fans are OK - return empty message to ignore successful checks
+                result["message"] = ""
+                result["ignore_success"] = True
+            
+            # Store raw fan data for reference
+            result["fan_data"] = fan_data
                 
         except requests.exceptions.RequestException as e:
             # Handle connection errors
@@ -447,39 +435,25 @@ class T21Handler(DeviceHandler):
     
     @classmethod
     def detect(cls, ip: str, username: str, password: str, timeout: int) -> bool:
-        """
-        Detect if an IP is a T21 device
-        
-        Args:
-            ip: IP address to check
-            username: Username for authentication
-            password: Password for authentication
-            timeout: Request timeout
-        Returns:
-            True if the IP is a T21 device, False otherwise
-        """
-        # -------------------------------------------------------
-        # This exactly matches the logic in detect_device_type for T21 devices
-        # -------------------------------------------------------
-        # Try API v1 summary endpoint
-        url = f"http://{ip}/api/v1/summary"
-        auth = HTTPDigestAuth(username, password)
-        
+        """Detect if an IP is a T21 device using socket API"""
         try:
-            response = requests.get(url, auth=auth, timeout=timeout, verify=False)
-            if response.status_code == 200:
-                try:
-                    data = response.json()
-                    if "miner" in data and "miner_type" in data["miner"]:
-                        device_type = data["miner"]["miner_type"]
-                        # T21 detection
-                        if "T21" in device_type:
-                            return True
-                except Exception:
-                    pass
+            # Create a handler instance to use the socket command method
+            handler = cls(None)  # None for scanner as it's not needed for this call
+            
+            # Send stats command to get device information
+            stats = handler.send_socket_command(ip, "stats", timeout=timeout)
+            
+            # Check if we received a valid response
+            if "STATS" in stats and len(stats["STATS"]) > 0:
+                # Get device type from stats
+                if "Type" in stats["STATS"][0]:
+                    device_type = stats["STATS"][0]["Type"]
+                    # T21 detection
+                    if "T21" in device_type:
+                        return True
         except Exception:
             pass
-        # If we get here, none of the T21-specific APIs responded
+        
         return False
 
 

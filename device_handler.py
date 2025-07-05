@@ -76,7 +76,9 @@ class DeviceHandler(ABC):
         """
         # Default implementation returns the original message unchanged
         return message
-        
+    
+
+    
     @classmethod
     def register(cls):
         """

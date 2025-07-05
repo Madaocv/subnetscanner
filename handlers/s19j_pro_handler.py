@@ -1,10 +1,9 @@
 """
-S21 Device Handler for Subnet Scanner
+S19j Pro Device Handler for Subnet Scanner
 
-This module provides implementation for S21 devices,
-including detection logic and log handling.
+This module provides implementation for S19j Pro devices,
+including detection logic and log handling via socket communication.
 """
-import json
 import requests
 from typing import Dict, Any, List
 from requests.auth import HTTPDigestAuth
@@ -13,19 +12,15 @@ from device_socket_based_handler import SocketBasedHandler
 from device_registry import DeviceRegistry
 
 
-class S21Handler(SocketBasedHandler):
-    """Handler for S21+ devices"""
-    device_type = "S21+"
-    
-    def get_log_endpoint(self) -> str:
-        """Return the log endpoint for S21+ devices"""
-        return "/cgi-bin/hlog.cgi"
+class S19jProHandler(SocketBasedHandler):
+    """Handler for S19j Pro devices"""
+    device_type = "S19j Pro"
     
 
     
     def fetch_logs(self, ip: str) -> Dict[str, Any]:
         """
-        Fetch logs from S21+ device using socket API
+        Fetch logs from S19j Pro device using socket API
         
         Args:
             ip: IP address of the device
@@ -37,7 +32,7 @@ class S21Handler(SocketBasedHandler):
         result = {
             "ip": ip,
             "status": "success",
-            "device_type": "S21+",
+            "device_type": "S19j Pro",
             "device_type_source": "registry"
         }
         
@@ -81,44 +76,9 @@ class S21Handler(SocketBasedHandler):
             
         return result
     
-    def parse_logs(self, log_content: str) -> Dict[str, Any]:
-        """
-        Parse S21+ log format
-        
-        Args:
-            log_content: Raw log content as string
-            
-        Returns:
-            Dictionary with parsed log information
-        """
-        # S21 logs format might differ, extract the most useful information
-        log_lines = log_content.strip().split("\n")
-        last_log_line = log_lines[-1] if log_lines else ""
-        
-        # Try to parse log components with regex
-        date_part = ""
-        time_part = ""
-        message = last_log_line
-        
-        # Try to extract timestamp if present
-        timestamp_match = re.search(r"(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\s+(.*)", last_log_line)
-        if timestamp_match:
-            date_part = timestamp_match.group(1)
-            time_part = timestamp_match.group(2)
-            message = timestamp_match.group(3)
-        
-        return {
-            "status": "success",
-            "date": date_part,
-            "time": time_part,
-            "source": "S21+",
-            "message": message,
-            "raw_log": last_log_line
-        }
-    
     def normalize_message(self, message: str) -> str:
         """
-        Normalize S21+ error messages for consistent grouping
+        Normalize S19j Pro error messages for consistent grouping
         
         Args:
             message: Original error message
@@ -126,16 +86,26 @@ class S21Handler(SocketBasedHandler):
         Returns:
             Normalized message for grouping
         """
-        # For S21 hashrate info messages, could optionally normalize formatting
-        # but for now we'll maintain them as is since they're typically unique per device
-        # and contain important specific values
-        
-        # Return original message if no normalization rules match
+        # For now, we'll use the exact message as provided
         return message
+        
+    def parse_logs(self, log_content: str) -> List[str]:
+        """
+        Parse logs from S19j Pro device
+        
+        Args:
+            log_content: Raw log content
+            
+        Returns:
+            List of parsed log entries
+        """
+        # For socket-based miner communication, we don't actually parse logs from text
+        # Instead, we just return an empty list since we get structured data from the socket API
+        return []
     
     @classmethod
     def detect(cls, ip: str, username: str, password: str, timeout: int) -> bool:
-        """Detect if an IP is an S21+ device using socket API"""
+        """Detect if an IP is a S19j Pro device using socket API"""
         try:
             # Create a handler instance to use the socket command method
             handler = cls(None)  # None for scanner as it's not needed for this call
@@ -143,20 +113,24 @@ class S21Handler(SocketBasedHandler):
             # Send stats command to get device information
             stats = handler.send_socket_command(ip, "stats", timeout=timeout)
             
-            # Check if we received a valid response
-            if "STATS" in stats and len(stats["STATS"]) > 0:
-                # Get device type from stats
-                if "Type" in stats["STATS"][0]:
-                    device_type = stats["STATS"][0]["Type"]
-                    # S21+ detection
-                    if "S21+" in device_type or "S21\+" in device_type or "S21" in device_type:
-                        return True
-        except Exception:
-            pass
+            # Check if we got a valid response
+            if "error" in stats:
+                return False
+                
+            # Check if this is an S19j Pro by looking at the Type field
+            if "STATS" in stats and len(stats["STATS"]) >= 1:
+                miner_type = stats["STATS"][0].get("Type", "")
+                if miner_type and ("S19j Pro" in miner_type or "Antminer S19j Pro" in miner_type):
+                    return True
             
-        return False
+            # If we get here, it's not an S19j Pro
+            return False
+            
+        except Exception:
+            # Any exception means we couldn't detect the device
+            return False
 
 
 # Register the handler and detector with the registry
-DeviceRegistry.register_handler("S21+", S21Handler)
-DeviceRegistry.register_detector("S21+", S21Handler.detect)
+DeviceRegistry.register_handler("S19j Pro", S19jProHandler)
+DeviceRegistry.register_detector("S19j Pro", S19jProHandler.detect)

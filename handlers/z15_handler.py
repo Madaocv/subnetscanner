@@ -144,7 +144,7 @@ class Z15Handler(DeviceHandler):
                     if "minertype" in data:
                         device_type = data["minertype"]
                         # Z15 detection
-                        if "Z15" in device_type:
+                        if "Antminer Z15" == device_type:
                             return True
                 except Exception:
                     pass
