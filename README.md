@@ -1,6 +1,6 @@
 # Subnet Scanner
 
-This project provides tools for scanning subnet IP ranges, detecting responsive devices, and retrieving system logs from them. It includes specialized support for Z15 Fan devices.
+This project provides tools for scanning subnet IP ranges, detecting responsive devices, and retrieving system logs from them. It includes specialized support for various device types including Z15, T21, S21, S21 Pro, and DG1+.
 
 ## Features
 
@@ -13,8 +13,8 @@ This project provides tools for scanning subnet IP ranges, detecting responsive 
 ## Components
 
 1. **subnet_scanner.py** - Core scanning tool that can scan IP ranges and fetch logs
-2. **z15_fan_broker.py** - Extended tool with specialized functionality for Z15 Fan devices
-3. **custom_config.json** - Configuration file for subnet settings and credentials
+2. **custom_config.json** - Configuration file for subnet settings and credentials
+3. **handlers/** - Directory containing device-specific handlers (T21, S21, S21 Pro, Z15, DG1+)
 
 ## Installation
 
@@ -40,28 +40,19 @@ This project provides tools for scanning subnet IP ranges, detecting responsive 
 
 ## Usage
 
-### Z15 Fan Broker
+### Running Subnet Scanner
 
-For scanning with the Z15 Fan Broker tool, which provides additional features:
+To run a subnet scan with the specified configuration file:
 
 ```bash
-# Scan using default or specified config file
-python z15_fan_broker.py --scan --config custom_config.json
+# Scan using specified config file
+python subnet_scanner.py --scan --config custom_config.json
 
 # Generate reports based on scan results
-python z15_fan_broker.py --scan --report --config custom_config.json
-
+python subnet_scanner.py --scan --report --config custom_config.json
 ```
 
-### Basic Subnet Scanning
 
-To run a basic subnet scan using default settings:
-
-```bash
-python subnet_scanner.py
-```
-
-This will scan the default subnet (10.31.212.0/24) and report any responsive devices.
 
 ### Configuration
 
