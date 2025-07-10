@@ -1,6 +1,6 @@
 # Subnet Scanner
 
-This project provides tools for scanning subnet IP ranges, detecting responsive devices, and retrieving system logs from them. It includes specialized support for various device types including Z15, T21, S21, S21 Pro, and DG1+.
+This project provides tools for scanning subnet IP ranges, detecting responsive devices, and retrieving system logs from them. It includes specialized support for various device types including Z15j, Z15, T21, S21, S21 Pro, S19j Pro, and DG1+.
 
 ## Features
 
@@ -14,7 +14,16 @@ This project provides tools for scanning subnet IP ranges, detecting responsive 
 
 1. **subnet_scanner.py** - Core scanning tool that can scan IP ranges and fetch logs
 2. **custom_config.json** - Configuration file for subnet settings and credentials
-3. **handlers/** - Directory containing device-specific handlers (T21, S21, S21 Pro, Z15, DG1+)
+3. **device_registry.py** - Registry for device handlers and detectors with prioritized detection order
+4. **device_socket_based_handler.py** - Base handler for devices that communicate via socket API
+5. **handlers/** - Directory containing device-specific handlers:
+   - **z15j_handler.py** - Handler for Z15j devices with specialized fan status detection
+   - **z15_handler.py** - Handler for Z15 devices
+   - **t21_handler.py** - Handler for T21 devices
+   - **s21_handler.py** - Handler for S21 devices
+   - **s21_pro_handler.py** - Handler for S21 Pro devices
+   - **s19j_pro_handler.py** - Handler for S19j Pro devices
+   - **dg1_handler.py** - Handler for DG1+ devices
 
 ## Installation
 
@@ -50,9 +59,31 @@ python subnet_scanner.py --scan --config custom_config.json
 
 # Generate reports based on scan results
 python subnet_scanner.py --scan --report --config custom_config.json
+
+# Show only device types summary (without detailed logs)
+python subnet_scanner.py --scan --devicetypes --config custom_config.json
 ```
 
+### Running Site Scanner
 
+The Site Scanner tool uses a hierarchical site configuration file that organizes miners by site locations and subsections:
+
+```bash
+# Scan an entire site using a site configuration file
+python site_scanner.py site_config_example_1.json
+
+# Scan and save results to a specific output file
+python site_scanner.py site_config_example_1.json --output results_site1.json
+```
+
+Site Scanner analyzes each subsection of your mining operation, detects devices, identifies issues (missing hashboards, fan problems, low hashrate), and provides a detailed summary comparing expected vs. actual online devices.
+
+### Command Line Arguments
+
+- `--scan`: Run the subnet scanning process
+- `--config`: Specify path to configuration file (default: none, uses built-in defaults)
+- `--report`: Generate detailed JSON and terminal reports
+- `--devicetypes`: Show only device types summary without detailed logs (useful for quick overview)
 
 ### Configuration
 
