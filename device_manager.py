@@ -72,9 +72,19 @@ class DeviceManager:
         
         if handler_class:
             try:
-                handler = handler_class(self.scanner)
+                # Get model config for this device type from site config
+                model_config = {}
+                if hasattr(self.scanner, 'site_config') and 'models' in self.scanner.site_config:
+                    # Get normalized device type for config lookup
+                    normalized_type = DeviceRegistry.normalize_device_type(device_type)
+                    model_config = self.scanner.site_config.get('models', {}).get(normalized_type, {})
+                    
+                # Create handler with model configuration
+                handler = handler_class(self.scanner, model_config)
+                
                 if verbose:
-                    print(f"Using {device_type} handler to fetch logs from {ip}")
+                    print(f"Using {device_type} handler with model config {model_config} to fetch logs from {ip}")
+                
                 return handler.fetch_logs(ip)
             except Exception as e:
                 if verbose:
