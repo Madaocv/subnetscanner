@@ -5,7 +5,7 @@ This module provides the base interface for device handlers,
 which implement device-specific operations like log fetching and parsing.
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from device_registry import DeviceRegistry
 
 
@@ -16,14 +16,16 @@ class DeviceHandler(ABC):
     """
     device_type = None
     
-    def __init__(self, scanner):
+    def __init__(self, scanner, model_config=None):
         """
-        Initialize the handler with a reference to the scanner
+        Initialize the handler with a reference to the scanner and model configuration
         
         Args:
             scanner: Scanner instance with methods like fetch_logs_from_ip
+            model_config: Configuration for this device model from site config
         """
         self.scanner = scanner
+        self.model_config = model_config or {}
     
     @abstractmethod
     def fetch_logs(self, ip: str) -> Dict[str, Any]:
@@ -77,7 +79,15 @@ class DeviceHandler(ABC):
         # Default implementation returns the original message unchanged
         return message
     
-
+    def get_expected_fans_from_config(self) -> int:
+        """
+        Get expected number of fans from model configuration
+        
+        Returns:
+            Number of expected fans according to site configuration
+        """
+        # Get fan count from model configuration, with fallback to default value
+        return self.model_config.get('fans', 2)  # Default to 2 fans if not specified
     
     @classmethod
     def register(cls):

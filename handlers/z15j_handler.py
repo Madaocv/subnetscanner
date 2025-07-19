@@ -44,11 +44,11 @@ class Z15jHandler(SocketBasedHandler):
                     }
                 
                 # Для Z15j, успішним вважається стан, коли кількість працюючих вентиляторів
-                # дорівнює або перевищує очікувану кількість у fan_num
+                # дорівнює або перевищує очікувану кількість вентиляторів з конфігурації
                 # Z15j особливість: працюють fan3 і fan4, а fan1 і fan2 завжди показують 0
                 working_fans = [f for f, rpm in fan_data.items() if rpm > 0]
                 working_fans_count = len(working_fans)
-                expected_fans = int(stats.get("fan_num", 0))
+                expected_fans = self.get_expected_fans_from_config()  # Використовуємо конфігурацію моделі замість fan_num
                 
                 # Якщо кількість працюючих вентиляторів >= очікуваної, все добре
                 if working_fans_count >= expected_fans:
@@ -65,21 +65,10 @@ class Z15jHandler(SocketBasedHandler):
                     failed_fans = expected_fans - working_fans_count
                     return {
                         "status": "error",
-                        "message": f"No {failed_fans} Fan find, check again",
+                        "message": f"No {failed_fans} Fan find, check again (expected {expected_fans} from config)",
                         "device_type": device_type,
                         "device_type_source": device_type_source,
                         "error_type": "device_error",
-                        "fan_data": fan_data
-                    }
-                    
-                # Deprecated code path - залишено для сумісності
-                # Буде видалено в майбутніх версіях
-                    
-                return {
-                        "status": "ok",
-                        "message": "",  # Empty message for successful state
-                        "device_type": device_type,
-                        "device_type_source": device_type_source,
                         "fan_data": fan_data
                     }
             else:
@@ -217,10 +206,11 @@ class Z15jHandler(SocketBasedHandler):
                 "message": last_line,
                 "raw_log": log_content
             }
-    
-    def extract_z15j_fan_status(self, stats: Dict[str, Any]) -> Tuple[int, Dict[str, int], str]:
+
+    def extract_z15j_fan_status(self, stats: Dict[str, Any]) -> Tuple[int, Dict[str, int], Optional[str]]:
         """
         Extract fan status information from Z15j stats response
+        Uses model configuration for expected fan count instead of device API data
         
         Args:
             stats: The parsed JSON stats response for Z15j devices
@@ -239,61 +229,37 @@ class Z15jHandler(SocketBasedHandler):
             if "error" in stats:
                 return 0, {}, stats["error"]
             
-            # Z15j специфіка: fan_num вказує очікувану кількість працюючих вентиляторів
-            # Але працюючі вентилятори мають індекси fan3, fan4, тощо
-            if "fan_num" in stats:
-                expected_fans = int(stats.get("fan_num", 0))  # Скільки вентиляторів повинно працювати
-                working_fans = 0  # Скільки вентиляторів реально працює
-                
-                # Збираємо дані про всі вентилятори
-                for i in range(1, 7):  # Перевіряємо до fan6 щоб бути впевненими
-                    fan_key = f"fan{i}"
-                    if fan_key in stats:
-                        rpm = int(stats[fan_key])
-                        fan_data[fan_key] = rpm
-                        # Рахуємо працюючі вентилятори (тільки ті, що мають RPM > 0)
-                        if rpm > 0:
-                            working_fans += 1
-                
-                # Кількість несправних вентиляторів - це різниця між очікуваними і працюючими
-                if working_fans < expected_fans:
-                    failed_fans = expected_fans - working_fans
-                else:
-                    failed_fans = 0  # Всі очікувані вентилятори працюють
-                # Ensure we don't report negative failed fans
-                if failed_fans < 0:
-                    failed_fans = 0
-                
-                return failed_fans, fan_data, None
+            # Отримуємо очікувану кількість вентиляторів з конфігурації моделі
+            expected_fans = self.get_expected_fans_from_config()
+            working_fans = 0  # Скільки вентиляторів реально працює
             
-            return 0, {}, "No fan data found in Z15j stats response"
+            # Збираємо дані про всі вентилятори
+            for i in range(1, 7):  # Перевіряємо до fan6 щоб бути впевненими
+                fan_key = f"fan{i}"
+                if fan_key in stats:
+                    rpm = int(stats[fan_key])
+                    fan_data[fan_key] = rpm
+                    # Рахуємо працюючі вентилятори (тільки ті, що мають RPM > 0)
+                    if rpm > 0:
+                        working_fans += 1
+            
+            # Кількість несправних вентиляторів - це різниця між очікуваними і працюючими
+            if working_fans < expected_fans:
+                failed_fans = expected_fans - working_fans
+            else:
+                failed_fans = 0  # Всі очікувані вентилятори працюють
+            
+            # Перевірка, щоб не було від'ємного значення несправних вентиляторів
+            failed_fans = max(0, failed_fans)
+            
+            error_message = None
+            if failed_fans > 0:
+                error_message = f"No {failed_fans} Fan find (expected {expected_fans} from config)"
+            
+            return failed_fans, fan_data, error_message
             
         except Exception as e:
             return 0, {}, f"Error parsing Z15j fan status: {str(e)}"
-    
-    def get_z15j_fan_message(self, fan_data: Dict[str, int], failed_fans: int) -> str:
-        """
-        Generate a message about the fan status for Z15j
-        
-        Args:
-            fan_data: Dictionary mapping fan keys to RPM values
-            failed_fans: Number of failed fans according to Z15j's fan_num vs working fans
-            
-        Returns:
-            A human-readable message about the fan status
-        """
-        # Z15j peculiarity: Only specific fans (fan3, fan4) should be working
-        # fan1 and fan2 are always 0 despite fan_num=2
-        working_fans = [f for f, rpm in fan_data.items() if rpm > 0]
-        non_working_fans = [f for f, rpm in fan_data.items() if rpm == 0 and f in ['fan3', 'fan4']]
-        
-        # Special message for Z15j based on expected vs working fans
-        if failed_fans > 0:
-            if non_working_fans:
-                return f"Z15j: {failed_fans} fan(s) not working - {', '.join(non_working_fans)}"
-            return f"Z15j: {failed_fans} expected fan(s) not detected"
-        
-        return f"All Z15j fans working properly ({', '.join(working_fans)})"
     
     def normalize_message(self, message: str) -> str:
         """Normalize Z15j error messages for consistent grouping"""

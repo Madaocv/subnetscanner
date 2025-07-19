@@ -7,6 +7,7 @@
     {
       "name": "SBSECTION -> TEST 1",
       "ip_ranges": [
+        "10.32.101.0/24",
         "10.31.105.0/24",
         "10.31.106.0/24",
         "10.31.110.0/24",
@@ -37,12 +38,17 @@
         {
           "model": "T21",
           "quantity": 55
+        },
+        {
+          "model": "Z15",
+          "quantity": 22
         }
       ]
     },
     {
       "name": "SBSECTION -> TEST 2",
       "ip_ranges": [
+        "10.32.102.0/24",
         "10.31.121.0/24",
         "10.31.206.0/24",
         "10.31.208.0/24",
@@ -52,7 +58,7 @@
       "miners": [
         {
           "model": "S21+",
-          "quantity": 65
+          "quantity": 25
         },
         {
           "model": "S21Pro",
@@ -60,19 +66,23 @@
         },
         {
           "model": "S19",
-          "quantity": 120
+          "quantity": 1
         },
         {
           "model": "DG+",
-          "quantity": 120
-        },
-        {
-          "model": "Z15j",
           "quantity": 2
         },
         {
+          "model": "Z15j",
+          "quantity": 22
+        },
+        {
           "model": "T21",
-          "quantity": 50
+          "quantity": 55
+        },
+        {
+          "model": "Z15",
+          "quantity": 22
         }
       ]
     }
