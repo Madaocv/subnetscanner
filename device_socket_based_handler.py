@@ -81,6 +81,7 @@ class SocketBasedHandler(DeviceHandler):
     def extract_fan_status(self, stats: Dict[Any, Any]) -> Tuple[int, Dict[str, int], Optional[str]]:
         """
         Extract fan status information from a stats response
+        Use site configuration for expected fan count instead of fan_num from device
         
         Args:
             stats: The parsed JSON stats response
@@ -102,20 +103,29 @@ class SocketBasedHandler(DeviceHandler):
             if "STATS" in stats and len(stats["STATS"]) >= 2:
                 stats_data = stats["STATS"][1]
                 
-                # Check if fan data exists
-                if "fan_num" in stats_data:
-                    fan_num = stats_data.get("fan_num", 0)
-                    
-                    # Count fans with 0 rpm (failed fans)
-                    for i in range(1, fan_num + 1):
-                        fan_key = f"fan{i}"
-                        if fan_key in stats_data:
-                            fan_rpm = stats_data[fan_key]
-                            fan_data[fan_key] = fan_rpm
-                            if fan_rpm == 0:
-                                failed_fans += 1
-                    
-                    return failed_fans, fan_data, None
+                # Get expected fans from site configuration instead of device API
+                expected_fans = self.get_expected_fans_from_config()
+                
+                # Collect fan data from as many fans as might be present in the response
+                # We'll scan up to fan10 to be thorough (most miners have 2-4 fans)
+                for i in range(1, 11):  # Look for fan1 through fan10
+                    fan_key = f"fan{i}"
+                    if fan_key in stats_data:
+                        fan_rpm = int(stats_data[fan_key])
+                        fan_data[fan_key] = fan_rpm
+                        
+                # Only count as failed if RPM=0 and it's within the expected fan count from config
+                # For example, if config says 4 fans but only fan3, fan4 are relevant on this model,
+                # we need to adjust our counting accordingly
+                for i in range(1, expected_fans + 1):
+                    fan_key = f"fan{i}"
+                    if fan_key in fan_data and fan_data[fan_key] == 0:
+                        failed_fans += 1
+                    elif fan_key not in fan_data:
+                        # Fan not present in data but expected according to config
+                        failed_fans += 1
+                
+                return failed_fans, fan_data, None
             
             return 0, {}, "No fan data found in stats response"
             
@@ -124,7 +134,7 @@ class SocketBasedHandler(DeviceHandler):
     
     def get_default_fan_message(self, failed_fans: int) -> str:
         """
-        Generate a standardized message about fan status
+        Generate a standardized message about fan status based on expected fans from config
         
         Args:
             failed_fans: Number of failed fans detected
@@ -133,7 +143,8 @@ class SocketBasedHandler(DeviceHandler):
             Message string to report fan status
         """
         if failed_fans > 0:
-            return f"No {failed_fans} Fan find"
+            expected_fans = self.get_expected_fans_from_config()
+            return f"No {failed_fans} Fan find, expected {expected_fans} fans"
         return ""
 
     def get_device_type_from_stats(self, stats: Dict[Any, Any]) -> Optional[str]:
