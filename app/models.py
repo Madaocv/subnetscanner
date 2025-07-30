@@ -30,7 +30,7 @@ class Site(Base):
                         onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
     
     subsections = relationship("Subsection", back_populates="site", cascade="all, delete-orphan")
-
+    executions = relationship("Execution", back_populates="site", cascade="all, delete-orphan")
 class Subsection(Base):
     __tablename__ = "subsections"
     
@@ -54,3 +54,17 @@ class SubsectionMiner(Base):
     subsection_id = Column(Integer, ForeignKey("subsections.id"))
     
     subsection = relationship("Subsection", back_populates="miners")
+
+class Execution(Base):
+    """Модель для збереження інформації про виконання сканування сайту."""
+    __tablename__ = "executions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(Integer, ForeignKey("sites.id"))
+    status = Column(String, default="pending")
+    result = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+    
+    # Відношення
+    site = relationship("Site", back_populates="executions")

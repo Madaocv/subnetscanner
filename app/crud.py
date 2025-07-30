@@ -192,3 +192,19 @@ def generate_run_config(db: Session, site_id: int):
     
     return run_config
 # db_device = models.Device(**device.model_dump())
+
+def get_latest_site_execution(db: Session, site_id: int):
+    """
+    Отримує останнє виконання сканування для вказаного сайту.
+    
+    Args:
+        db: Сесія бази даних
+        site_id: ID сайту
+        
+    Returns:
+        Останнє виконання або None, якщо виконань не було
+    """
+    return db.query(models.Execution)\
+        .filter(models.Execution.site_id == site_id)\
+        .order_by(models.Execution.created_at.desc())\
+        .first()

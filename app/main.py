@@ -30,6 +30,18 @@ def create_site(site: schemas.SiteCreate, db: Session = Depends(get_db)):
 
 @app.get("/sites/", response_model=List[schemas.Site])
 def read_sites(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """
+    Retrieve a list of sites with pagination support.
+
+    Args:
+        skip (int): Number of records to skip for pagination.
+        limit (int): Maximum number of records to return.
+        db (Session): Database session dependency.
+
+    Returns:
+        List[schemas.Site]: List of site objects.
+    """
+    # Fetch sites from the database with the specified skip and limit
     sites = crud.get_sites(db, skip=skip, limit=limit)
     return sites
 
@@ -143,3 +155,17 @@ def read_site_executions(site_id: int, skip: int = 0, limit: int = 100, db: Sess
     
     executions = crud.get_site_executions(db, site_id=site_id, skip=skip, limit=limit)
     return executions
+
+@app.post("/sites/{site_id}/subsections", response_model=schemas.Subsection)
+def create_subsection_for_site(
+    site_id: int,
+    subsection: schemas.SubsectionCreate,
+    db: Session = Depends(get_db)
+):
+    # Перевіряємо, чи існує сайт
+    db_site = crud.get_site(db, site_id=site_id)
+    if db_site is None:
+        raise HTTPException(status_code=404, detail="Site not found")
+    
+    # Створюємо підрозділ
+    return crud.create_subsection(db=db, subsection=subsection, site_id=site_id)

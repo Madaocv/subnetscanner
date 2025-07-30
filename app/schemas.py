@@ -2,6 +2,16 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
+class Execution(BaseModel):
+    """Схема для відповіді на запит виконання сканування."""
+    success: bool = Field(..., description="Чи успішно запущено сканування")
+    message: str = Field(..., description="Повідомлення про результат")
+    task_id: Optional[str] = Field(None, description="Ідентифікатор завдання (якщо запущено асинхронно)")
+    details: Optional[Dict[str, Any]] = Field(None, description="Додаткові деталі виконання")
+
+    class Config:
+        from_attributes = True
+
 # Device schemas
 class DeviceCreate(BaseModel):
     name: str = Field(..., description="Device model name")
@@ -91,7 +101,8 @@ class Site(BaseModel):
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     subsections: List[Subsection] = Field(..., description="List of subsections in this site")
-
+    latest_execution: Optional[Execution] = None
+    
     class Config:
         from_attributes = True
 
@@ -108,13 +119,3 @@ class RunConfig(BaseModel):
     site_id: str = Field(..., description="Site identifier")
     subsections: List[Dict[str, Any]] = Field(..., description="List of subsections with their configuration")
     models: Dict[str, DeviceConfig] = Field(..., description="Dictionary of device models and their specifications")
-
-class Execution(BaseModel):
-    """Схема для відповіді на запит виконання сканування."""
-    success: bool = Field(..., description="Чи успішно запущено сканування")
-    message: str = Field(..., description="Повідомлення про результат")
-    task_id: Optional[str] = Field(None, description="Ідентифікатор завдання (якщо запущено асинхронно)")
-    details: Optional[Dict[str, Any]] = Field(None, description="Додаткові деталі виконання")
-
-    class Config:
-        from_attributes = True
