@@ -129,9 +129,65 @@ The following screenshot shows the script execution and terminal output:
 #### HTML Report
 ![HTML Report](img/reporthtml.png)
 
+## Docker Deployment
+
+The project includes a full-stack web application with Docker containerization for easy deployment.
+
+### Architecture
+
+The Docker setup consists of 3 containers:
+
+1. **Backend Container** (`subnetscanner_backend`)
+   - FastAPI application (Python 3.11)
+   - Handles Site/Device/Subsection CRUD operations
+   - Executes subnet scanning via `site_scanner.py`
+   - Manages execution status and results
+   - Port: 8000
+
+2. **Frontend Container** (`subnetscanner_frontend`)
+   - Next.js application (Node.js 18)
+   - React-based UI for managing sites and devices
+   - Port: 3000
+
+3. **Database Container** (`subnetscanner_postgres`)
+   - PostgreSQL 15 database
+   - Persistent data storage with volumes
+   - Stores sites, devices, subsections, and execution results
+   - Port: 5432
+
+### Quick Start with Docker
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Madaocv/subnetscanner.git
+   cd subnetscanner
+   ```
+
+2. Start all services:
+   ```bash
+   docker-compose up -d
+   ```
+
+3. Access the application:
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000
+   - API Documentation: http://localhost:8000/docs
+
+4. Stop services:
+   ```bash
+   docker-compose down
+   ```
+
 ## Requirements
 
+### Local Development
 - Python 3.9+
 - Required packages (see requirements.txt):
   - requests
   - ipaddress
+
+### Docker Deployment
+- Docker Engine 20.10+
+- Docker Compose 2.0+
+- 2GB+ available RAM
+- 5GB+ available disk space
