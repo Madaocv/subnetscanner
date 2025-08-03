@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from . import models, schemas
 from typing import List, Optional
+import datetime
 
 # Device CRUD
 def get_device(db: Session, device_id: int):
@@ -66,6 +67,38 @@ def update_site(db: Session, site_id: int, site: schemas.SiteUpdate):
         return None
     
     update_data = site.model_dump(exclude_unset=True)
+    
+    # Handle subsections separately
+    if 'subsections' in update_data:
+        subsections_data = update_data.pop('subsections')
+        
+        # Delete existing subsections and their miners
+        for subsection in db_site.subsections:
+            # Delete miners first
+            for miner in subsection.miners:
+                db.delete(miner)
+            db.delete(subsection)
+        
+        # Create new subsections
+        for subsection_data in subsections_data:
+            miners_data = subsection_data.pop('miners', [])
+            
+            db_subsection = models.Subsection(
+                **subsection_data,
+                site_id=site_id
+            )
+            db.add(db_subsection)
+            db.flush()  # Get the subsection ID
+            
+            # Create miners for this subsection
+            for miner_data in miners_data:
+                db_miner = models.SubsectionMiner(
+                    **miner_data,
+                    subsection_id=db_subsection.id
+                )
+                db.add(db_miner)
+    
+    # Update basic site fields
     for key, value in update_data.items():
         setattr(db_site, key, value)
     
@@ -208,3 +241,91 @@ def get_latest_site_execution(db: Session, site_id: int):
         .filter(models.Execution.site_id == site_id)\
         .order_by(models.Execution.created_at.desc())\
         .first()
+
+# Execution CRUD operations
+def create_execution(db: Session, site_id: int):
+    """
+    Створює новий запис виконання сканування для сайту.
+    
+    Args:
+        db: Сесія бази даних
+        site_id: ID сайту
+        
+    Returns:
+        Створений запис виконання
+    """
+    db_execution = models.Execution(
+        site_id=site_id,
+        status="pending"
+    )
+    db.add(db_execution)
+    db.commit()
+    db.refresh(db_execution)
+    return db_execution
+
+def get_execution(db: Session, execution_id: int):
+    """
+    Отримує запис виконання за ID.
+    
+    Args:
+        db: Сесія бази даних
+        execution_id: ID виконання
+        
+    Returns:
+        Запис виконання або None
+    """
+    return db.query(models.Execution).filter(models.Execution.id == execution_id).first()
+
+def get_executions(db: Session, skip: int = 0, limit: int = 100):
+    """
+    Отримує список всіх виконань.
+    
+    Args:
+        db: Сесія бази даних
+        skip: Кількість записів для пропуску
+        limit: Максимальна кількість записів
+        
+    Returns:
+        Список виконань
+    """
+    return db.query(models.Execution).offset(skip).limit(limit).all()
+
+def get_site_executions(db: Session, site_id: int, skip: int = 0, limit: int = 100):
+    """
+    Отримує всі виконання для конкретного сайту.
+    
+    Args:
+        db: Сесія бази даних
+        site_id: ID сайту
+        skip: Кількість записів для пропуску
+        limit: Максимальна кількість записів
+        
+    Returns:
+        Список виконань для сайту
+    """
+    return db.query(models.Execution)\
+        .filter(models.Execution.site_id == site_id)\
+        .offset(skip).limit(limit).all()
+
+def update_execution_status(db: Session, execution_id: int, status: str, data: dict = None):
+    """
+    Оновлює статус та результати виконання.
+    
+    Args:
+        db: Сесія бази даних
+        execution_id: ID виконання
+        status: Новий статус (pending, running, completed, failed)
+        data: Дані результатів виконання
+        
+    Returns:
+        Оновлений запис виконання або None
+    """
+    db_execution = db.query(models.Execution).filter(models.Execution.id == execution_id).first()
+    if db_execution:
+        db_execution.status = status
+        if data is not None:
+            db_execution.result = data
+        db_execution.updated_at = datetime.datetime.utcnow()
+        db.commit()
+        db.refresh(db_execution)
+    return db_execution

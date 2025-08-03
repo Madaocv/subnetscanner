@@ -4,10 +4,12 @@ from datetime import datetime
 
 class Execution(BaseModel):
     """Схема для відповіді на запит виконання сканування."""
-    success: bool = Field(..., description="Чи успішно запущено сканування")
-    message: str = Field(..., description="Повідомлення про результат")
-    task_id: Optional[str] = Field(None, description="Ідентифікатор завдання (якщо запущено асинхронно)")
-    details: Optional[Dict[str, Any]] = Field(None, description="Додаткові деталі виконання")
+    id: int = Field(..., description="Унікальний ідентифікатор виконання")
+    site_id: int = Field(..., description="ID сайту")
+    status: str = Field(..., description="Статус виконання (pending, running, completed, failed)")
+    result: Optional[Dict[str, Any]] = Field(None, description="Результати сканування")
+    created_at: datetime = Field(..., description="Час створення")
+    updated_at: datetime = Field(..., description="Час останнього оновлення")
 
     class Config:
         from_attributes = True
@@ -91,6 +93,7 @@ class SiteUpdate(BaseModel):
     username: Optional[str] = Field(None, description="Username for site access")
     password: Optional[str] = Field(None, description="Password for site access")
     timeout: Optional[int] = Field(None, description="Connection timeout in seconds")
+    subsections: Optional[List[SubsectionCreate]] = Field(None, description="List of subsections in this site")
 
 class Site(BaseModel):
     id: int = Field(..., description="Unique identifier")

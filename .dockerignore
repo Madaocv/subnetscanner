@@ -1,0 +1,48 @@
+# Ігноруємо файли, які не потрібні в Docker контейнері
+.git
+.gitignore
+.vscode
+.DS_Store
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv
+venv/
+env/
+ENV/
+
+# Frontend файли (вони будуть в окремому контейнері)
+frontend/
+frontend/**
+
+# Локальні файли бази даних
+app.db
+*.db
+
+# Логи
+*.log
+app.log
+
+# Тестові файли
+tests/
+test_*
+
+# Документація
+README.md
+*.md
+
+# Тимчасові файли
+*.tmp
+*.temp
+.cache/
+
+# IDE файли
+.idea/
+*.swp
+*.swo
+
+# OS файли
+Thumbs.db
+.DS_Store

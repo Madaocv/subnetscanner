@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # PostgreSQL база даних
+  postgres:
+    image: postgres:15
+    container_name: subnetscanner_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: subnetdb
+      POSTGRES_USER: subnetuser
+      POSTGRES_PASSWORD: subnetpass123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - subnetscanner_network
+
+  # FastAPI Backend
+  backend:
+    build: .
+    container_name: subnetscanner_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    volumes:
+      - ./reports:/app/reports
+      - ./app.log:/app/app.log
+    networks:
+      - subnetscanner_network
+    environment:
+      - PYTHONPATH=/app
+
+  # Next.js Frontend
+  frontend:
+    image: node:18-alpine
+    container_name: subnetscanner_frontend
+    restart: always
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - node_modules_cache:/app/node_modules  # Іменований volume замість анонімного
+    command: sh -c "npm install && npm run dev & sleep 10 && node warmup.js && wait"
+    depends_on:
+      - backend
+    networks:
+      - subnetscanner_network
+    environment:
+      - NODE_ENV=development
+
+# Мережа для зв'язку між контейнерами
+networks:
+  subnetscanner_network:
+    driver: bridge
+
+# Volumes для збереження даних
+volumes:
+  postgres_data:
+    driver: local
+  node_modules_cache:
+    driver: local

@@ -2,17 +2,38 @@
 from fastapi import FastAPI, HTTPException, Depends, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 import datetime
+import logging
+
+# Налаштування логування
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('app.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 from . import models, schemas, crud
 from .database import engine, SessionLocal, get_db
 from .run_scan import run_scan
 # Create database tables
-models.Base.metadata.drop_all(bind=engine)
+# ONE-TIME: Recreate tables to apply unique constraint
+# models.Base.metadata.drop_all(bind=engine)
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Site and Device Management API")
+
+@app.on_event("startup")
+async def startup_event():
+    """Create database tables on startup"""
+    # Only create tables if they don't exist (preserves data)
+    # models.Base.metadata.drop_all(bind=engine)  # DISABLED: Don't delete data
+    models.Base.metadata.create_all(bind=engine)
 
 # Add CORS middleware
 app.add_middleware(
@@ -90,7 +111,14 @@ def delete_site(site_id: int, db: Session = Depends(get_db)):
 # Device models endpoints
 @app.post("/devices/", response_model=schemas.Device, status_code=status.HTTP_201_CREATED)
 def create_device(device: schemas.DeviceCreate, db: Session = Depends(get_db)):
-    return crud.create_device(db=db, device=device)
+    try:
+        return crud.create_device(db=db, device=device)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Device with name '{device.name}' already exists"
+        )
 
 @app.get("/devices/", response_model=List[schemas.Device])
 def read_devices(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -106,10 +134,17 @@ def read_device(device_id: int, db: Session = Depends(get_db)):
 
 @app.put("/devices/{device_id}", response_model=schemas.Device)
 def update_device(device_id: int, device: schemas.DeviceUpdate, db: Session = Depends(get_db)):
-    db_device = crud.update_device(db, device_id=device_id, device=device)
-    if db_device is None:
-        raise HTTPException(status_code=404, detail="Device not found")
-    return db_device
+    try:
+        db_device = crud.update_device(db, device_id=device_id, device=device)
+        if db_device is None:
+            raise HTTPException(status_code=404, detail="Device not found")
+        return db_device
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Device with name '{device.name}' already exists"
+        )
 
 @app.delete("/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_device(device_id: int, db: Session = Depends(get_db)):
@@ -130,7 +165,7 @@ def start_execution(site_id: int, background_tasks: BackgroundTasks, db: Session
     execution = crud.create_execution(db, site_id=site_id)
     
     # Start the background task for scanning - pass site_id instead of site object
-    background_tasks.add_task(run_scan, site_id, execution.id)
+    background_tasks.add_task(run_scan, site_id, execution.id, logger)
     
     return execution
 

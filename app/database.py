@@ -3,13 +3,20 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///./app.db"
-# For PostgreSQL, use:
-# SQLALCHEMY_DATABASE_URL = "postgresql://user:password@postgresserver/db"
+import os
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+# Автоматичний вибір бази даних залежно від середовища
+if os.getenv('DOCKER_ENV') == 'true':
+    # PostgreSQL для Docker
+    SQLALCHEMY_DATABASE_URL = "postgresql://subnetuser:subnetpass123@postgres:5432/subnetdb"
+    engine = create_engine(SQLALCHEMY_DATABASE_URL)
+else:
+    # SQLite для локальної розробки
+    SQLALCHEMY_DATABASE_URL = "sqlite:///./app.db"
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL, 
+        connect_args={"check_same_thread": False}
+    )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

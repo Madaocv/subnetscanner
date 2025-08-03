@@ -9,7 +9,7 @@ class Device(Base):
     __tablename__ = "devices"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True, nullable=False)
+    name = Column(String, index=True, nullable=False, unique=True)
     hashrate = Column(Integer, nullable=False)
     HB = Column(Integer, nullable=False)
     fans = Column(Integer, nullable=False)
