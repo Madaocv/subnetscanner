@@ -19,5 +19,8 @@ ENV DOCKER_ENV=true
 # Відкриваємо порт 8000
 EXPOSE 8000
 
+# Install PostgreSQL client for health checks
+RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/apt/lists/*
+
 # Команда для запуску FastAPI сервера
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["/bin/sh", "-c", "/wait.sh postgres uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]

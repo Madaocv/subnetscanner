@@ -29,10 +29,14 @@ services:
     volumes:
       - ./reports:/app/reports
       - ./logs:/app/logs
+      - ./wait.sh:/wait.sh
     networks:
       - subnetscanner_network
     environment:
       - PYTHONPATH=/app
+      - POSTGRES_DB=subnetdb
+      - POSTGRES_USER=subnetuser
+      - POSTGRES_PASSWORD=subnetpass123
 
   # Next.js Frontend
   frontend:
