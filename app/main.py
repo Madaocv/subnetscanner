@@ -8,11 +8,16 @@ import datetime
 import logging
 
 # Налаштування логування
+import os
+
+# Create logs directory if it doesn't exist
+os.makedirs('/app/logs', exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('app.log'),
+        logging.FileHandler('/app/logs/app.log'),
         logging.StreamHandler()
     ]
 )
