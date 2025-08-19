@@ -89,6 +89,12 @@ class SiteScanner:
         self.results = {}
         self.active_ips = []
         
+        # Async TCP scan defaults (can be overridden by CLI)
+        self.use_async_tcp: bool = True
+        self.tcp_ports: List[int] = [80, 443]
+        self.tcp_concurrency: int = 1000
+        self.tcp_timeout: float = 0.5
+        
         # Initialize the device manager
         self.device_manager = DeviceManager(self)
         
@@ -267,6 +273,78 @@ class SiteScanner:
                     print(f"IP {ip} generated an exception: {exc}")
         
         return responsive_ips
+        
+    def scan_ip_range_async_tcp(self, ip_range: str, ports: Optional[List[int]] = None, concurrency: int = 1000, per_host_timeout: float = 0.5, verbose: bool = True) -> List[str]:
+        """
+        Fast TCP connect scan using asyncio sockets.
+        Considerably faster than thread pools at high concurrency, with low overhead.
+
+        Args:
+            ip_range: IP range in CIDR or simple last-octet range (e.g., 10.0.0.0/24 or 10.0.0.1-254)
+            ports: List of ports to try (responsive if any connects). Defaults to [80, 443].
+            concurrency: Max concurrent connection attempts.
+            per_host_timeout: Timeout per host attempt in seconds.
+            verbose: Whether to print progress.
+
+        Returns:
+            List of responsive IP addresses.
+        """
+        import asyncio
+
+        if ports is None:
+            ports = [80, 443]
+
+        # Expand the range to individual IPs
+        ips = self.parse_ip_range(ip_range)
+        if not ips:
+            return []
+
+        if verbose:
+            print(f"Starting async TCP scan of {ip_range} with concurrency={concurrency}, ports={ports}")
+
+        semaphore = asyncio.Semaphore(concurrency)
+        responsive: List[str] = []
+
+        async def try_connect(ip: str) -> bool:
+            # Try a small set of ports; success on first connect
+            for port in ports:
+                try:
+                    async with semaphore:
+                        # asyncio.open_connection handles non-blocking connect
+                        conn = asyncio.open_connection(ip, port)
+                        reader, writer = await asyncio.wait_for(conn, timeout=per_host_timeout)
+                        # Connected successfully
+                        writer.close()
+                        try:
+                            await writer.wait_closed()
+                        except Exception:
+                            pass
+                        return True
+                except (asyncio.TimeoutError, OSError, ConnectionRefusedError):
+                    # Try next port
+                    continue
+                except Exception:
+                    continue
+            return False
+
+        async def run_all() -> List[str]:
+            tasks = [try_connect(ip) for ip in ips]
+            results = await asyncio.gather(*tasks, return_exceptions=False)
+            return [ip for ip, ok in zip(ips, results) if ok]
+
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result_ips = loop.run_until_complete(run_all())
+            loop.close()
+        except Exception as e:
+            if verbose:
+                print(f"Error in async TCP scan: {e}")
+            return []
+
+        if verbose:
+            print(f"Completed async TCP scan, found {len(result_ips)} responsive IPs")
+        return result_ips
         
     def scan_ip_range_more_threads(self, ip_range: str, verbose: bool = True) -> List[str]:
         """
@@ -688,7 +766,19 @@ class SiteScanner:
         # Scan each IP range in this subsection
         all_active_ips = []
         for ip_range in ip_ranges:
-            active_ips = self.scan_ip_range(ip_range, verbose=verbose)
+            # Use fast async TCP scanner by default (configurable)
+            if getattr(self, "use_async_tcp", False):
+                if verbose:
+                    print(f"Using async TCP scan for {ip_range} (ports={self.tcp_ports}, conc={self.tcp_concurrency}, timeout={self.tcp_timeout})")
+                active_ips = self.scan_ip_range_async_tcp(
+                    ip_range,
+                    ports=getattr(self, "tcp_ports", [80, 443]),
+                    concurrency=getattr(self, "tcp_concurrency", 1000),
+                    per_host_timeout=getattr(self, "tcp_timeout", 0.5),
+                    verbose=verbose,
+                )
+            else:
+                active_ips = self.scan_ip_range(ip_range, verbose=verbose)
             all_active_ips.extend(active_ips)
         
         # Store active IPs
@@ -1184,6 +1274,14 @@ def compare_scan_methods(ip_range=None):
     print(f"Found {len(responsive_ips_async)} active IP addresses")
     print(f"Time: {duration:.2f} seconds")
     
+    # Async TCP sockets method (fast)
+    print("\n3b. Async TCP sockets method (fast):")
+    start = time.time()
+    responsive_ips_async_tcp = scanner.scan_ip_range_async_tcp(ip_range)
+    duration = time.time() - start
+    print(f"Found {len(responsive_ips_async_tcp)} active IP addresses")
+    print(f"Time: {duration:.2f} seconds")
+    
     # Chunked method
     print("\n4. Chunked method:")
     start = time.time()  # Start timing
@@ -1274,6 +1372,11 @@ def main():
     parser.add_argument("--output", "-o", help="Output file for scan results")
     parser.add_argument("--benchmark", "-b", help="Run benchmark on specified IP range")
     parser.add_argument("--compare-libs", "-c", help="Compare ipaddress and netaddr libraries for the specified IP range")
+    # Async TCP scanner tuning
+    parser.add_argument("--no-async-tcp", action="store_true", help="Disable async TCP method (use original thread-based scan)")
+    parser.add_argument("--tcp-ports", type=str, default=None, help="Comma-separated ports to probe (default: 80,443)")
+    parser.add_argument("--tcp-concurrency", type=int, default=None, help="Max concurrent TCP connects (default: 1000)")
+    parser.add_argument("--tcp-timeout", type=float, default=None, help="Per-host TCP connect timeout in seconds (default: 0.5)")
     
     args = parser.parse_args()
     
@@ -1294,6 +1397,19 @@ def main():
     
     # Create scanner instance with the config file
     scanner = SiteScanner(args.config)
+
+    # Apply async TCP tuning from CLI
+    if args.no_async_tcp:
+        scanner.use_async_tcp = False
+    if args.tcp_ports:
+        try:
+            scanner.tcp_ports = [int(p.strip()) for p in args.tcp_ports.split(",") if p.strip()]
+        except Exception:
+            print("⚠️ Invalid --tcp-ports format. Use comma-separated integers, e.g., 80,443,4028")
+    if args.tcp_concurrency:
+        scanner.tcp_concurrency = max(1, args.tcp_concurrency)
+    if args.tcp_timeout:
+        scanner.tcp_timeout = max(0.05, float(args.tcp_timeout))
     
     if not scanner.site_config:
         print("❌ No valid site configuration provided.")
